@@ -1,0 +1,87 @@
+---
+title: "exploracaoDepFederal"
+author: "Wesley Santos"
+date: "7/26/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(skimr)
+theme_set(theme_bw())
+```
+
+```{r}
+candDepFederal %>% 
+    filter(qtde_votos < max(qtde_votos)) %>%
+    ggplot(aes(x = qtde_votos, y = "")) +
+    geom_point(alpha = 0.2, size = 4, color = "dodgerblue")
+
+eleicoes.2018.resultados.turno.1 %>%
+    filter(grepl("deputado-federal", slug, fixed = TRUE))
+
+candDepFederal %>%
+    count()
+```
+Obs: A votação do deputado federal Eduardo Bolsonaro foi omitida por representar um grande outlier e
+nao refletir os valores mais frequentes de votação.
+# Relação entre receita e quantidade de votos
+
+```{r}
+candDepFederal %>% 
+    #filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
+    ggplot(aes(x = total_receita, y = qtde_votos)) +
+    geom_point(alpha = 0.3) +
+    scale_x_log10() +
+    scale_y_log10()
+    
+    
+candDepFederal %>% 
+    filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
+    #group_by(sigla_partido) %>%
+    summarise(cors = cor(log10(qtde_votos), log10(total_receita), method = "spearman"))
+```
+
+Correlações entre receita e quantidade de votos por partido
+
+```{r, fig.height = 6, fig.width = 7}
+cors <- candDepFederal %>%
+    filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
+    group_by(sigla_partido) %>%
+    summarise(receita_votos = cor(total_receita, qtde_votos, method = "spearman"),
+              patrimonio_votos = cor(patrimonio, qtde_votos, method = "spearman"))
+
+library(ggchicklet)
+library(viridis)
+
+cors %>%
+    filter(sigla_partido != "PCO") %>%
+    ggplot(aes(x = reorder(sigla_partido, receita_votos))) +
+    geom_chicklet(aes(y = receita_votos, fill = receita_votos), width = 0.7) +
+    coord_flip() +
+    theme(plot.caption = element_text(hjust = 0)) +
+    scale_y_continuous(breaks = seq(from = 0, to = 1, by = 0.2)) +
+    scale_fill_gradient(low = "gray", high = "mediumseagreen") +
+    labs(
+        x = "Partidos",
+        y = "Correlação",
+        title = "Correlação entre receita e votos por partido*",
+        fill = "Intensidade",
+        caption = "* PCO foi omitido, por apresentar só uma deputada (sendo impossível calcular relações)"
+    )
+```
+
+```{r}
+cors %>%
+    ggplot(aes(x = reorder(sigla_partido, patrimonio_votos), color = sigla_partido)) +
+    geom_point(aes(y = patrimonio_votos)) +
+    coord_flip()
+```
+
+
+
+```{r}
+candDepFederal %>% 
+    ggplot(aes(x = qtde_votos)) +
+    geom_histogram()                
+```
