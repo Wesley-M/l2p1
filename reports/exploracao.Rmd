@@ -2,49 +2,123 @@
 title: "exploracaoDepFederal"
 author: "Wesley Santos"
 date: "7/26/2021"
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
 ---
 
-```{r}
+```{r warning=FALSE, message=FALSE}
 library(tidyverse)
 library(skimr)
+library(here)
+
 theme_set(theme_bw())
 ```
 
-```{r}
-candDepFederal %>% 
-    filter(qtde_votos < max(qtde_votos)) %>%
-    ggplot(aes(x = qtde_votos, y = "")) +
-    geom_point(alpha = 0.2, size = 4, color = "dodgerblue")
+```{r warning=FALSE, message=FALSE}
+#Patrimônio é declarado pelo/a candidato/a, total_receita é o total arrecadado para ser gasto na campanha (provavelmente igual ao gasto).
+candDepFederal = read_csv(here("data/candidaturas-dep-federal-2018.csv"),
+                          col_types = "ccdcciicd")
 
-eleicoes.2018.resultados.turno.1 %>%
-    filter(grepl("deputado-federal", slug, fixed = TRUE))
+candDepFederal %>%
+    filter(qtde_votos < max(qtde_votos)) %>%
+    
+    mutate(regiao =
+               ifelse(
+                   uf %in%  c("PR", "RS", "SC"),
+                   "sul",
+                   ifelse(
+                       uf %in%  c("DF", "MT", "MS", "GO"),
+                       "centro-oeste",
+                       ifelse(
+                           uf %in%  c("SP", "RJ", "ES", "MG"),
+                           "sudeste",
+                           ifelse(
+                               uf %in%  c("AM", "RR", "AP", "PA", "TO", "RO", "AC"),
+                               "norte",
+                               "nordeste"
+                           )
+                       )
+                   )
+               )) %>%
+    ggplot(aes(x = qtde_votos, y = "")) +
+    geom_point(alpha = 0.2,
+               size = 4,
+               color = "dodgerblue")
 
 candDepFederal %>%
     count()
 ```
-Obs: A votação do deputado federal Eduardo Bolsonaro foi omitida por representar um grande outlier e
-nao refletir os valores mais frequentes de votação.
+
+
+
 # Relação entre receita e quantidade de votos
 
+Agora analisaremos a relação entre o dinheiro arrecadado para campanha 
+e o total de votos recebidos pelos deputados federais na eleição de 2018. 
+Existem candidatos que têm poucos recursos e se elegem e também candidatos com 
+muitos recursos que não se elegem. Nesses casos, o dinheiro arrecadado não é um 
+fator definitivo para o resultado. É necessário portanto, determinar o impacto 
+da receita no total de votos. A seguir é feita uma análise de correlação 
+para verificar a interação entre receita e votos.
+Obs: A votação do deputado federal Eduardo Bolsonaro foi omitida por representar
+um grande outlier e não refletir os valores mais frequentes de votação.
+
+```{r, fig.align='center'}
+
+candDepFederal = candDepFederal %>%
+    filter(qtde_votos < max(qtde_votos))
+
+candDepFederal %>%
+  ggplot(aes(x = total_receita, y = qtde_votos)) +
+  geom_point(size = 3,
+             alpha = .2,
+             color = "blue") +
+  labs(y = "Votos",
+       x = "Receita",
+       title = "Relação entre receita e votos")
+```
+Ao observar os pontos para votos e receita dos candidatos da forma que estão 
+representados originalmente, percebemos que é difícil notar algum padrão na 
+escala atual, pois a maioria dos valores são baixos e estão muito próximos uns 
+dos outros. Para analisar de forma mais clara os dados é preciso transformar a 
+escala atual em logarítmica e filtrar diversos valores de receita que foram 
+declarados como 1 real, seja por erro ou por um comportamento padrão no registro 
+da receita de parte do candidatos. Esses valores baixos de receita estavam presentes
+para candidatos com as mais variadas quantidades de voto e não possibilitam a 
+verificação de correlação entre as variáveis para esses casos.
+
+```{r, fig.align='center'}
+candDepFederal = candDepFederal %>%
+  filter(total_receita > 1) %>%
+  mutate(log_receita = log10(total_receita), log_votos = log10(qtde_votos))
+
+candDepFederal %>%
+  ggplot(aes(x = log_receita, y = log_votos)) +
+  geom_point(size = 3,
+             alpha = .2,
+             color = "blue") +
+  labs(y = "Votos (LOG 10)",
+       x = "Receita (LOG 10)",
+       title = "Relação entre receita e votos")
+```
+Depois de aplicar as tranformações necessárias, podemos ver claramente que em 
+grande parte dos valores, à medida em que a receita aumenta o número de votos
+também aumenta. Isso indica uma correlação linear positiva e forte, que não se
+reverte ao longo da faixa de valores para as variáveis analisadas. Existem 
+alguns pontos que se afastam mais dessa tendência, mas não há variações muito 
+extremas. Calculamos o coeficiente de correlação de Pearson para receita e votos
+e obtivemos o valor 0.69 que reforça as evidências de que há uma correlação forte
+entre essas variáveis.
+
 ```{r}
+#Coeficiente Pearson para receita e votos
 candDepFederal %>% 
-    #filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
-    ggplot(aes(x = total_receita, y = qtde_votos)) +
-    geom_point(alpha = 0.3) +
-    scale_x_log10() +
-    scale_y_log10()
-    
-    
-candDepFederal %>% 
-    filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
-    #group_by(sigla_partido) %>%
-    summarise(cors = cor(log10(qtde_votos), log10(total_receita), method = "spearman"))
+  summarise(corr_pearson = cor(log_receita, log_votos, method = "pearson")) %>%
+  pull(corr_pearson)
 ```
 
-Correlações entre receita e quantidade de votos por partido
-
-```{r, fig.height = 6, fig.width = 7}
+```{r, fig.height = 6, fig.width = 7, fig.align='center',warning=FALSE, message=FALSE}
 cors <- candDepFederal %>%
     filter(qtde_votos < quantile(qtde_votos, 0.99), total_receita > 1) %>%
     group_by(sigla_partido) %>%
@@ -71,14 +145,20 @@ cors %>%
     )
 ```
 
+Ao calcularmos a correlação entre as variáveis receita e votos analisando estes 
+dados em separado para cada partido, observamos que a correlação chega a ser muito
+forte para alguns partidos com valores de até 0.8 e que para mais da metade dos 
+partidos a correlação é maior que 0.6. Isso reforça a hipótese de que a receita
+dos candidatos tem um forte impacto sobre o seu desempenho durante as eleições, 
+tanto individualmente, quanto em conjunto com os outros candidatos do mesmo 
+partidos na maioria dos casos.
+
 ```{r}
 cors %>%
     ggplot(aes(x = reorder(sigla_partido, patrimonio_votos), color = sigla_partido)) +
     geom_point(aes(y = patrimonio_votos)) +
     coord_flip()
 ```
-
-
 
 ```{r}
 candDepFederal %>% 
