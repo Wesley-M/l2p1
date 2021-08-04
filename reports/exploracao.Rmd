@@ -53,6 +53,10 @@ options(scipen=999)
 ```
 
 ```{css, echo=FALSE}
+* {
+    text-align: justify;
+}
+
 .side-by-side {
     display: flex;
 }
@@ -395,3 +399,60 @@ partidos a correlação é maior que 0.6. Isso reforça a hipótese de que a rec
 dos candidatos tem um forte impacto sobre o seu desempenho durante as eleições, 
 tanto individualmente, quanto em conjunto com os outros candidatos do mesmo 
 partidos na maioria dos casos.
+
+# Patrimônio dos candidatos
+
+Como já vimos anteriormente, temos no nosso conjunto de dados alguns canditatos 
+sem patrimônio e outros com patrimônios exorbitantes, ou seja, uma grande variação
+dos patrimônios. Nesta última parte analisaremos a distribuição do patrimônio 
+dos candidatos por unidade federativa.
+
+```{r}
+freq_cand <- candidatos %>%
+    group_by(uf) %>%
+    summarise(freq = n(), med_patr = mean(patrimonio))
+
+freq_cand %>%
+  ggplot(aes(x = reorder(uf, med_patr))) +
+  geom_col(aes(y = med_patr)) +
+  coord_flip() +
+    labs(
+        x = "UF",
+        y = "Média do Patrimônio",
+        title = "Média do Patrimônio por UF"
+    )
+```
+Aqui temos em ordem decrescente as médias de patrimônio dos candidatos por 
+unidade federativa. Um problema com essa abordagem é que as médias sofrem grande
+variação se no conjunto de valores existem valores extremos, mesmo que sejam poucos.
+Um outro problema é que não conseguimos identificar em qual das UFs temos uma 
+quantidade relativa maior de canditadatos com mais patrimônio. Apresentamos uma 
+abordagem alternativa a seguir.
+
+```{r}
+candidatos %>%
+    group_by(uf) %>%
+    summarise(freq_total = n(), patrimonio, .groups = "drop") %>%
+    filter(patrimonio > median(patrimonio)) %>%
+    group_by(uf) %>%
+    summarise(freq = n(), freq_total) %>% 
+    distinct() %>%
+    mutate(prop = freq / freq_total) %>%
+    ggplot(aes(x = reorder(uf, prop), y = prop)) +
+    geom_col()+
+  coord_flip()+
+    labs(
+        x = "UF",
+        y = "Proporção de Candidatos",
+        title = "Proporção de candidatos mais ricos por UF"
+    )
+```
+
+Aqui ao invés de analisar a média de patrimônio de todos candidatos de uma UF 
+optamos por utilizar a metade dos candidatos que possuem mais patrimônio em todo
+o conjunto de dados. Então observamos qual a proporção da quantidade de candidatos
+mais ricos em relação ao total de candidatos de uma determinada UF. Notamos que
+dentre as UFs, Tocantins é a que mais possui candidatos mais ricos chegando a passar
+60% do total de seus candidatos e com uma diferença considerável entre o segundo 
+colocado Alagoas. Entre os demais estados não existem grandes diferenças chegando a
+um mínimo de pouco mais de 40% dos candidatos como mais ricos no Rio Grande do Sul.
